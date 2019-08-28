@@ -42,6 +42,7 @@
 #include <future>
 #include <mutex>
 #include <csignal>
+#include <tuple>
 
 static std::mutex g_io_mutex;
 
@@ -421,9 +422,19 @@ class Session {
     if (!sess_) {
       throw std::bad_alloc();
     }
-    int rc = ssh_options_set(sess_.get(), SSH_OPTIONS_HOST, host());
+    // parse host:port string;
+    host_str = host();
+    char *host;
+    int port;
+    tie(host, port) = divide(host_str);
+
+    int rc = ssh_options_set(sess_.get(), SSH_OPTIONS_HOST, host);
     if (rc != 0) {
       Error("Set SSH_OPTIONS_HOST", rc);
+    }
+    int rc = ssh_options_set(sess_.get(), SSH_OPTIONS_PORT, port);
+    if (rc != 0) {
+      Error("Set SSH_OPTIONS_PORT", rc);
     }
     rc = ssh_options_set(sess_.get(), SSH_OPTIONS_COMPRESSION, "no");
     if (rc != 0) {
@@ -459,6 +470,16 @@ class Session {
     return do_ != nullptr;
   }
 
+  // parse host:port string;
+  std::tuple<char *, int> divide(char *input) {
+      int port = 22; // default
+      char *host = std::strtok(input, ":");
+      char *port_str = std::strtok(NULL, " ");
+      if (port_str != NULL){
+          port = std::atoi(port_str);
+      }
+      return std::make_tuple(host, port);
+  }
   int exit_status() const { return exit_status_; }
   bool exit_status_set() const { return exit_status_set_; }
 
